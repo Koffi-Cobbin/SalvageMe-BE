@@ -1,0 +1,12 @@
+# Compiled via: pip-compile requirements.in -o requirements.txt
+Django>=5.0,<5.1
+djangorestframework
+djangorestframework-simplejwt
+psycopg2-binary
+drf-spectacular
+django-filter
+django-cors-headers
+django-environ
+requests
+uritemplate
+PyYAML

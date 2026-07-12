@@ -1,0 +1,43 @@
+# Local dev only — two services, matching the PythonAnywhere free-tier
+# constraint of "no persistent worker process besides the web app itself"
+# (no redis, no celery-worker, no celery-beat). See README for how the
+# equivalent of `db` is provisioned in production (a PythonAnywhere-managed
+# Postgres instance, not this container).
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: salvageme
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - salvageme_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  salvageme_pgdata:

@@ -1,0 +1,1580 @@
+openapi: 3.0.3
+info:
+  title: SalvageMe API
+  version: 1.0.0
+  description: API for SalvageMe, a community book/educational-material exchange platform
+    connecting donors with recipients (students, families, schools).
+paths:
+  /api/v1/auth/login/:
+    post:
+      operationId: auth_login_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LoginRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LoginRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginRequest'
+          description: ''
+  /api/v1/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/refresh/:
+    post:
+      operationId: auth_refresh_create
+      description: |-
+        Reads the refresh token from the httpOnly cookie (never the request
+        body) and issues a fresh access token, rotating the refresh cookie.
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/register/:
+    post:
+      operationId: auth_register_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /api/v1/categories/:
+    get:
+      operationId: categories_list
+      tags:
+      - categories
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+          description: ''
+  /api/v1/categories/{id}/:
+    get:
+      operationId: categories_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this category.
+        required: true
+      tags:
+      - categories
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/v1/dropoff-points/:
+    get:
+      operationId: dropoff_points_list
+      description: GET /api/v1/dropoff-points/ — public, used to populate a scheduling
+        picker.
+      tags:
+      - dropoff-points
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DropOffPoint'
+          description: ''
+  /api/v1/dropoff-points/{id}/:
+    get:
+      operationId: dropoff_points_retrieve
+      description: GET /api/v1/dropoff-points/ — public, used to populate a scheduling
+        picker.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this drop off point.
+        required: true
+      tags:
+      - dropoff-points
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DropOffPoint'
+          description: ''
+  /api/v1/exchanges/:
+    get:
+      operationId: exchanges_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - exchanges
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedExchangeList'
+          description: ''
+  /api/v1/exchanges/{id}/:
+    get:
+      operationId: exchanges_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this exchange.
+        required: true
+      tags:
+      - exchanges
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchange'
+          description: ''
+  /api/v1/exchanges/{id}/cancel/:
+    post:
+      operationId: exchanges_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this exchange.
+        required: true
+      tags:
+      - exchanges
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchange'
+          description: ''
+  /api/v1/exchanges/{id}/complete/:
+    post:
+      operationId: exchanges_complete_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this exchange.
+        required: true
+      tags:
+      - exchanges
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchange'
+          description: ''
+  /api/v1/exchanges/{id}/rate/:
+    post:
+      operationId: exchanges_rate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this exchange.
+        required: true
+      tags:
+      - exchanges
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchange'
+          description: ''
+  /api/v1/exchanges/{id}/schedule/:
+    post:
+      operationId: exchanges_schedule_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this exchange.
+        required: true
+      tags:
+      - exchanges
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exchange'
+          description: ''
+  /api/v1/listings/:
+    get:
+      operationId: listings_list
+      description: |-
+        /api/v1/listings/
+
+        Public read access (list/retrieve show only `available` listings unless
+        the requester is the owner or staff); write access requires
+        authentication and, for update/delete/photos, ownership.
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+      - in: query
+        name: condition
+        schema:
+          type: string
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - in: query
+        name: grade_level
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - listings
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedListingList'
+          description: ''
+    post:
+      operationId: listings_create
+      description: |-
+        /api/v1/listings/
+
+        Public read access (list/retrieve show only `available` listings unless
+        the requester is the owner or staff); write access requires
+        authentication and, for update/delete/photos, ownership.
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListingWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ListingWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ListingWriteRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingWrite'
+          description: ''
+  /api/v1/listings/{listing_pk}/request/:
+    post:
+      operationId: listings_request_create
+      description: POST /api/v1/listings/{listing_id}/request/
+      parameters:
+      - in: path
+        name: listing_pk
+        schema:
+          type: integer
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateBookRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateBookRequestRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBookRequest'
+          description: ''
+  /api/v1/listings/{id}/:
+    get:
+      operationId: listings_retrieve
+      description: |-
+        /api/v1/listings/
+
+        Public read access (list/retrieve show only `available` listings unless
+        the requester is the owner or staff); write access requires
+        authentication and, for update/delete/photos, ownership.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this listing.
+        required: true
+      tags:
+      - listings
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: ''
+    put:
+      operationId: listings_update
+      description: |-
+        /api/v1/listings/
+
+        Public read access (list/retrieve show only `available` listings unless
+        the requester is the owner or staff); write access requires
+        authentication and, for update/delete/photos, ownership.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this listing.
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListingWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ListingWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ListingWriteRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingWrite'
+          description: ''
+    patch:
+      operationId: listings_partial_update
+      description: |-
+        /api/v1/listings/
+
+        Public read access (list/retrieve show only `available` listings unless
+        the requester is the owner or staff); write access requires
+        authentication and, for update/delete/photos, ownership.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this listing.
+        required: true
+      tags:
+      - listings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedListingWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedListingWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedListingWriteRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingWrite'
+          description: ''
+    delete:
+      operationId: listings_destroy
+      description: |-
+        /api/v1/listings/
+
+        Public read access (list/retrieve show only `available` listings unless
+        the requester is the owner or staff); write access requires
+        authentication and, for update/delete/photos, ownership.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this listing.
+        required: true
+      tags:
+      - listings
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/listings/{id}/photos/:
+    post:
+      operationId: listings_photos_create
+      description: |-
+        /api/v1/listings/
+
+        Public read access (list/retrieve show only `available` listings unless
+        the requester is the owner or staff); write access requires
+        authentication and, for update/delete/photos, ownership.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this listing.
+        required: true
+      tags:
+      - listings
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+          description: ''
+  /api/v1/reports/:
+    post:
+      operationId: reports_create
+      description: POST /api/v1/reports/ — any authenticated user can file a report.
+      tags:
+      - reports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+          description: ''
+  /api/v1/requests/:
+    get:
+      operationId: requests_list
+      description: |-
+        GET /api/v1/requests/ — scoped to the current user (sent + received)
+        POST /api/v1/requests/{id}/accept/
+        POST /api/v1/requests/{id}/decline/
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - requests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBookRequestList'
+          description: ''
+  /api/v1/requests/{id}/:
+    get:
+      operationId: requests_retrieve
+      description: |-
+        GET /api/v1/requests/ — scoped to the current user (sent + received)
+        POST /api/v1/requests/{id}/accept/
+        POST /api/v1/requests/{id}/decline/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this book request.
+        required: true
+      tags:
+      - requests
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookRequest'
+          description: ''
+  /api/v1/requests/{id}/accept/:
+    post:
+      operationId: requests_accept_create
+      description: |-
+        GET /api/v1/requests/ — scoped to the current user (sent + received)
+        POST /api/v1/requests/{id}/accept/
+        POST /api/v1/requests/{id}/decline/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this book request.
+        required: true
+      tags:
+      - requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BookRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BookRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookRequest'
+          description: ''
+  /api/v1/requests/{id}/decline/:
+    post:
+      operationId: requests_decline_create
+      description: |-
+        GET /api/v1/requests/ — scoped to the current user (sent + received)
+        POST /api/v1/requests/{id}/accept/
+        POST /api/v1/requests/{id}/decline/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this book request.
+        required: true
+      tags:
+      - requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BookRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BookRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookRequest'
+          description: ''
+  /api/v1/stats/impact/:
+    get:
+      operationId: stats_impact_retrieve
+      description: GET /api/v1/stats/impact/ — public, cached aggregate stats.
+      tags:
+      - stats
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImpactStats'
+          description: ''
+  /api/v1/users/me/:
+    get:
+      operationId: users_me_retrieve
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+    put:
+      operationId: users_me_update
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserMeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserMeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserMeRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+    patch:
+      operationId: users_me_partial_update
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserMeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserMeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserMeRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+components:
+  schemas:
+    BookRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        listing:
+          type: integer
+        listing_title:
+          type: string
+          readOnly: true
+        requester:
+          allOf:
+          - $ref: '#/components/schemas/PublicUser'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BookStatusEnum'
+          readOnly: true
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - listing
+      - listing_title
+      - requester
+      - status
+    BookRequestRequest:
+      type: object
+      properties:
+        listing:
+          type: integer
+        message:
+          type: string
+      required:
+      - listing
+    BookStatusEnum:
+      enum:
+      - pending
+      - accepted
+      - declined
+      - cancelled
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `accepted` - Accepted
+        * `declined` - Declined
+        * `cancelled` - Cancelled
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          oneOf:
+          - type: string
+            maxLength: 50
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+      required:
+      - id
+      - name
+    CategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        slug:
+          oneOf:
+          - type: string
+            maxLength: 50
+            pattern: ^[-a-zA-Z0-9_]+$
+          - type: string
+            maxLength: 0
+      required:
+      - name
+    ConditionEnum:
+      enum:
+      - new
+      - good
+      - fair
+      - worn
+      type: string
+      description: |-
+        * `new` - New
+        * `good` - Good
+        * `fair` - Fair
+        * `worn` - Worn
+    CreateBookRequest:
+      type: object
+      properties:
+        message:
+          type: string
+    CreateBookRequestRequest:
+      type: object
+      properties:
+        message:
+          type: string
+    DropOffPoint:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        address:
+          type: string
+          readOnly: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+      required:
+      - address
+      - id
+      - latitude
+      - longitude
+      - name
+    Exchange:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        listing:
+          type: integer
+          readOnly: true
+        listing_title:
+          type: string
+          readOnly: true
+        donor:
+          allOf:
+          - $ref: '#/components/schemas/PublicUser'
+          readOnly: true
+        recipient:
+          allOf:
+          - $ref: '#/components/schemas/PublicUser'
+          readOnly: true
+        dropoff_point:
+          allOf:
+          - $ref: '#/components/schemas/DropOffPoint'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ExchangeStatusEnum'
+          readOnly: true
+        scheduled_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        counterpart_contact:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          readOnly: true
+      required:
+      - completed_at
+      - counterpart_contact
+      - donor
+      - dropoff_point
+      - id
+      - listing
+      - listing_title
+      - recipient
+      - scheduled_at
+      - status
+    ExchangeStatusEnum:
+      enum:
+      - scheduled
+      - completed
+      - cancelled
+      - no_show
+      type: string
+      description: |-
+        * `scheduled` - Scheduled
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+        * `no_show` - No show
+    ImpactStats:
+      type: object
+      properties:
+        total_listings:
+          type: integer
+          readOnly: true
+        total_exchanges_completed:
+          type: integer
+          readOnly: true
+        total_active_donors:
+          type: integer
+          readOnly: true
+        total_active_recipients:
+          type: integer
+          readOnly: true
+        computed_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - computed_at
+      - total_active_donors
+      - total_active_recipients
+      - total_exchanges_completed
+      - total_listings
+    Listing:
+      type: object
+      description: |-
+        Read serializer. Deliberately omits precise lat/lng — public listing
+        search only ever surfaces an approximate distance (see
+        SECURITY REQUIREMENTS), computed by the view's geo annotation and
+        exposed here as `distance_km` when present.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/PublicUser'
+          readOnly: true
+        title:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          readOnly: true
+        category:
+          allOf:
+          - $ref: '#/components/schemas/Category'
+          readOnly: true
+        grade_level:
+          type: string
+          readOnly: true
+          nullable: true
+        condition:
+          allOf:
+          - $ref: '#/components/schemas/ConditionEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ListingStatusEnum'
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListingPhoto'
+          readOnly: true
+        distance_km:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category
+      - condition
+      - created_at
+      - description
+      - distance_km
+      - grade_level
+      - id
+      - images
+      - owner
+      - status
+      - title
+      - updated_at
+    ListingPhoto:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          format: uri
+          readOnly: true
+        order:
+          type: integer
+          readOnly: true
+      required:
+      - id
+      - order
+      - url
+    ListingStatusEnum:
+      enum:
+      - available
+      - pending
+      - claimed
+      - removed
+      type: string
+      description: |-
+        * `available` - Available
+        * `pending` - Pending
+        * `claimed` - Claimed
+        * `removed` - Removed
+    ListingWrite:
+      type: object
+      description: |-
+        Create/update serializer. `status` is intentionally not writable here —
+        it is system-controlled via request-accept/exchange-completion flows
+        (see WHAT NOT TO DO: a PATCH must never set status=claimed directly).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        category:
+          type: integer
+        grade_level:
+          type: string
+          nullable: true
+          maxLength: 50
+        condition:
+          $ref: '#/components/schemas/ConditionEnum'
+      required:
+      - category
+      - condition
+      - description
+      - id
+      - title
+    ListingWriteRequest:
+      type: object
+      description: |-
+        Create/update serializer. `status` is intentionally not writable here —
+        it is system-controlled via request-accept/exchange-completion flows
+        (see WHAT NOT TO DO: a PATCH must never set status=claimed directly).
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+        category:
+          type: integer
+        grade_level:
+          type: string
+          nullable: true
+          maxLength: 50
+        condition:
+          $ref: '#/components/schemas/ConditionEnum'
+        latitude:
+          type: number
+          format: double
+          writeOnly: true
+        longitude:
+          type: number
+          format: double
+          writeOnly: true
+      required:
+      - category
+      - condition
+      - description
+      - title
+    LoginRequest:
+      type: object
+      description: Schema-only serializer for LoginView's request body (auth is handled
+        by TokenObtainPairSerializer).
+      properties:
+        username:
+          type: string
+      required:
+      - username
+    LoginRequestRequest:
+      type: object
+      description: Schema-only serializer for LoginView's request body (auth is handled
+        by TokenObtainPairSerializer).
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - password
+      - username
+    PaginatedBookRequestList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookRequest'
+    PaginatedExchangeList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Exchange'
+    PaginatedListingList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Listing'
+    PatchedListingWriteRequest:
+      type: object
+      description: |-
+        Create/update serializer. `status` is intentionally not writable here —
+        it is system-controlled via request-accept/exchange-completion flows
+        (see WHAT NOT TO DO: a PATCH must never set status=claimed directly).
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          minLength: 1
+        category:
+          type: integer
+        grade_level:
+          type: string
+          nullable: true
+          maxLength: 50
+        condition:
+          $ref: '#/components/schemas/ConditionEnum'
+        latitude:
+          type: number
+          format: double
+          writeOnly: true
+        longitude:
+          type: number
+          format: double
+          writeOnly: true
+    PatchedUserMeRequest:
+      type: object
+      description: Full self-view/edit for the authenticated user's own profile.
+      properties:
+        email:
+          title: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          nullable: true
+          maxLength: 32
+    PublicUser:
+      type: object
+      description: |-
+        Safe-to-expose-publicly view of a user (e.g. as a listing's owner in
+        search results). Never includes phone or precise location — see
+        SECURITY REQUIREMENTS: raw location/contact info is only surfaced to
+        the other matched party once a request is accepted (handled in the
+        exchanges app's ExchangeContactSerializer, not here).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        is_verified:
+          type: boolean
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - date_joined
+      - id
+      - is_verified
+      - role
+      - username
+    ReasonEnum:
+      enum:
+      - spam
+      - inappropriate
+      - misrepresented
+      - no_show
+      - other
+      type: string
+      description: |-
+        * `spam` - Spam
+        * `inappropriate` - Inappropriate
+        * `misrepresented` - Misrepresented
+        * `no_show` - No show
+        * `other` - Other
+    Register:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          title: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          nullable: true
+          maxLength: 32
+      required:
+      - id
+      - username
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          title: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          nullable: true
+          maxLength: 32
+      required:
+      - password
+      - username
+    Report:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        target_type:
+          $ref: '#/components/schemas/TargetTypeEnum'
+        target_id:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        detail:
+          type: string
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ReportStatusEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - reason
+      - status
+      - target_id
+      - target_type
+    ReportRequest:
+      type: object
+      properties:
+        target_type:
+          $ref: '#/components/schemas/TargetTypeEnum'
+        target_id:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        detail:
+          type: string
+      required:
+      - reason
+      - target_id
+      - target_type
+    ReportStatusEnum:
+      enum:
+      - open
+      - resolved
+      - dismissed
+      type: string
+      description: |-
+        * `open` - Open
+        * `resolved` - Resolved
+        * `dismissed` - Dismissed
+    RoleEnum:
+      enum:
+      - donor
+      - recipient
+      - both
+      type: string
+      description: |-
+        * `donor` - Donor
+        * `recipient` - Recipient
+        * `both` - Both
+    TargetTypeEnum:
+      enum:
+      - listing
+      - user
+      type: string
+      description: |-
+        * `listing` - Listing
+        * `user` - User
+    UserMe:
+      type: object
+      description: Full self-view/edit for the authenticated user's own profile.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+        email:
+          title: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          nullable: true
+          maxLength: 32
+        is_verified:
+          type: boolean
+          readOnly: true
+        avatar_url:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - avatar_url
+      - date_joined
+      - id
+      - is_verified
+      - latitude
+      - longitude
+      - username
+    UserMeRequest:
+      type: object
+      description: Full self-view/edit for the authenticated user's own profile.
+      properties:
+        email:
+          title: Email address
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        phone:
+          type: string
+          nullable: true
+          maxLength: 32
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
