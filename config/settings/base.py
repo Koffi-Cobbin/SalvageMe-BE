@@ -142,6 +142,26 @@ DATABASES = build_databases(default_engine="postgis")
 # named explicitly here.
 SPATIALITE_LIBRARY_PATH = env("SPATIALITE_LIBRARY_PATH", default="mod_spatialite")
 
+
+def assert_no_localhost_cors_origins(origins: list[str]) -> None:
+    """
+    Called by staging.py/prod.py after resolving CORS_ALLOWED_ORIGINS.
+    Catches the same class of mistake as the DB_ENGINE/ALLOWED_HOSTS guards
+    above: a .env copied from the local-dev template (which points at
+    http://localhost:3000) deployed as-is to a real environment, silently
+    locking out the real frontend rather than failing loudly.
+    """
+    from django.core.exceptions import ImproperlyConfigured
+
+    localhost_origins = [o for o in origins if "localhost" in o or "127.0.0.1" in o]
+    if localhost_origins:
+        raise ImproperlyConfigured(
+            f"CORS_ALLOWED_ORIGINS contains localhost origin(s) {localhost_origins} outside local "
+            f"dev — this looks like a .env copied from .env.example rather than "
+            f".env.production.example. Set CORS_ALLOWED_ORIGINS to your real deployed frontend "
+            f"origin(s)."
+        )
+
 # ---------------------------------------------------------------------------
 # Password validation
 # ---------------------------------------------------------------------------

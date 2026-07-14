@@ -251,10 +251,18 @@ only.
    ```
 2. Create a Postgres database (see [Deviations](#deviations--assumptions) below for a note on
    Postgres availability on PythonAnywhere's literal free tier).
-3. Set environment variables. PythonAnywhere doesn't read `.env` automatically for WSGI apps —
-   either `export` them at the top of the WSGI configuration file (Web tab → WSGI configuration
-   file) before the Django import, or rely on `.env` in the project root, which
-   `config/settings/base.py` already loads via `django-environ` if present.
+3. Set environment variables. **Use `.env.production.example` as your starting point, not
+   `.env.example`** — the latter is tuned for zero-setup local dev (SQLite, localhost CORS origins)
+   and will silently misconfigure a real deployment if copied as-is:
+   ```bash
+   cp .env.production.example .env
+   # then fill in every value — nothing in this template is a safe default
+   ```
+   `config/settings/base.py` loads `.env` from the project root automatically via `django-environ`,
+   so this is all that's needed — no separate `export` step in the WSGI file required. (`prod.py`
+   and `staging.py` also actively refuse to boot if `DB_ENGINE` isn't `postgis` or if
+   `CORS_ALLOWED_ORIGINS` contains a localhost origin, specifically to catch this mistake loudly
+   instead of silently misbehaving.)
 4. In the **Web** tab's WSGI configuration file:
    ```python
    import os, sys
@@ -268,13 +276,13 @@ only.
    from config.wsgi import application
    ```
    **Important:** use a hard assignment (`os.environ["DJANGO_SETTINGS_MODULE"] = ...`) here, not
-   `os.environ.setdefault(...)`. `config/settings/base.py` already loads `.env` automatically — if
-   you also call `load_dotenv()` yourself in the WSGI file *before* this line, and your `.env`
-   happens to contain a `DJANGO_SETTINGS_MODULE` value (e.g. left over from copying
-   `.env.example`), `setdefault()` would silently do nothing (the key's already set) and Django
-   would boot with the wrong settings module — `DEBUG=True` and a permissive `ALLOWED_HOSTS`
-   leaking into what you thought was production. A hard assignment always wins regardless of
-   what's in `.env`.
+   `os.environ.setdefault(...)`, and **don't add your own `load_dotenv()` call** in this file —
+   `config/settings/base.py` already loads `.env` from the project root automatically. If you add a
+   redundant `load_dotenv()` *before* the line above, and your `.env` happens to contain a
+   `DJANGO_SETTINGS_MODULE` value, a hard assignment still protects you — but if you use
+   `setdefault()` instead (as the assignment above intentionally avoids), that combination silently
+   does nothing, and Django boots with the wrong settings module: `DEBUG=True` and a permissive
+   `ALLOWED_HOSTS` leaking into what you thought was production.
 5. Set the **Source code** / **Working directory** to the project root, and the **Virtualenv** path
    to `/home/yourusername/salvageme_backend/venv`.
 6. Run migrations and collect static files from the Bash console:

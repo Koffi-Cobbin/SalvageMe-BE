@@ -1,7 +1,7 @@
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F401,F403
-from .base import build_databases, env
+from .base import build_databases, env, assert_no_localhost_cors_origins
 
 DEBUG = False
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
@@ -13,6 +13,7 @@ if DATABASES["default"]["ENGINE"] != "django.contrib.gis.db.backends.postgis":
     raise ImproperlyConfigured("Staging must use PostGIS — refusing to start with DB_ENGINE=spatialite.")
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+assert_no_localhost_cors_origins(CORS_ALLOWED_ORIGINS)
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = env("EMAIL_HOST", default="")
