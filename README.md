@@ -267,6 +267,14 @@ only.
 
    from config.wsgi import application
    ```
+   **Important:** use a hard assignment (`os.environ["DJANGO_SETTINGS_MODULE"] = ...`) here, not
+   `os.environ.setdefault(...)`. `config/settings/base.py` already loads `.env` automatically — if
+   you also call `load_dotenv()` yourself in the WSGI file *before* this line, and your `.env`
+   happens to contain a `DJANGO_SETTINGS_MODULE` value (e.g. left over from copying
+   `.env.example`), `setdefault()` would silently do nothing (the key's already set) and Django
+   would boot with the wrong settings module — `DEBUG=True` and a permissive `ALLOWED_HOSTS`
+   leaking into what you thought was production. A hard assignment always wins regardless of
+   what's in `.env`.
 5. Set the **Source code** / **Working directory** to the project root, and the **Virtualenv** path
    to `/home/yourusername/salvageme_backend/venv`.
 6. Run migrations and collect static files from the Bash console:
