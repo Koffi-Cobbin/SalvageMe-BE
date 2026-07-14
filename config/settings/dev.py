@@ -2,7 +2,7 @@ from .base import *  # noqa: F401,F403
 from .base import build_databases, env
 
 DEBUG = True
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "salvageme.pythonanywhere.com"]
 
 # SQLite (via SpatiaLite) by default for a zero-setup local dev experience —
 # set DB_ENGINE=postgis in .env to point dev at a real Postgres+PostGIS
