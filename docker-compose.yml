@@ -34,6 +34,7 @@ services:
       - .env
     environment:
       DB_HOST: db
+      DB_ENGINE: postgis
       DJANGO_SETTINGS_MODULE: config.settings.dev
     depends_on:
       db:

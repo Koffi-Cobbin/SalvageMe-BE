@@ -92,19 +92,55 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 # ---------------------------------------------------------------------------
-# Database (PostgreSQL + PostGIS everywhere — sqlite is not used, including
-# in tests, because location/geo behaviour needs to be exercised for real)
+# Database
+#
+# Two supported engines, chosen via the DB_ENGINE env var:
+#   - "postgis"    (default) — PostgreSQL + PostGIS. Required for staging/prod
+#                    (see staging.py/prod.py, which hardcode it regardless of
+#                    DB_ENGINE) and recommended for dev if you want geo-search
+#                    behaviour to match production exactly.
+#   - "spatialite" — SQLite + the SpatiaLite extension. A zero-setup local
+#                    dev option (no DB server to run) that still supports
+#                    GeoDjango's PointField/geo lookups, unlike plain sqlite3
+#                    (which has no spatial support at all). dev.py defaults
+#                    to this. Requires the `libsqlite3-mod-spatialite` system
+#                    package — see README "Local setup".
+#
+# NOTE: SpatiaLite has no true "geography" column type, so distance
+# calculations there are planar (Cartesian) rather than PostGIS's geodesic
+# calculation — fine for local dev, but geo-search distances will differ
+# slightly from production. See README "Known limitations".
 # ---------------------------------------------------------------------------
-DATABASES = {
-    "default": {
-        "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": env("DB_NAME", default="salvageme"),
-        "USER": env("DB_USER", default="postgres"),
-        "PASSWORD": env("DB_PASSWORD", default="postgres"),
-        "HOST": env("DB_HOST", default="localhost"),
-        "PORT": env("DB_PORT", default="5432"),
+def build_databases(default_engine: str) -> dict:
+    engine = env("DB_ENGINE", default=default_engine)
+
+    if engine == "spatialite":
+        return {
+            "default": {
+                "ENGINE": "django.contrib.gis.db.backends.spatialite",
+                "NAME": env("DB_NAME", default=str(BASE_DIR / "db.sqlite3")),
+            }
+        }
+
+    return {
+        "default": {
+            "ENGINE": "django.contrib.gis.db.backends.postgis",
+            "NAME": env("DB_NAME", default="salvageme"),
+            "USER": env("DB_USER", default="postgres"),
+            "PASSWORD": env("DB_PASSWORD", default="postgres"),
+            "HOST": env("DB_HOST", default="localhost"),
+            "PORT": env("DB_PORT", default="5432"),
+        }
     }
-}
+
+
+DATABASES = build_databases(default_engine="postgis")
+
+# Only relevant when DB_ENGINE=spatialite. On Debian/Ubuntu the extension
+# ships as `mod_spatialite`, not `libspatialite` (the name GeoDjango's
+# ctypes.util.find_library() lookup expects by default), so it has to be
+# named explicitly here.
+SPATIALITE_LIBRARY_PATH = env("SPATIALITE_LIBRARY_PATH", default="mod_spatialite")
 
 # ---------------------------------------------------------------------------
 # Password validation

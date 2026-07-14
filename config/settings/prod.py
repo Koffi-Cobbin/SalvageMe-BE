@@ -1,5 +1,7 @@
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import *  # noqa: F401,F403
-from .base import env
+from .base import build_databases, env
 
 # NOTE: on PythonAnywhere this module is loaded via the WSGI config file
 # PythonAnywhere generates for you — see README "Deploying to PythonAnywhere"
@@ -7,6 +9,12 @@ from .base import env
 
 DEBUG = False
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])  # e.g. ["yourusername.pythonanywhere.com"]
+
+# Production must use PostGIS, regardless of any DB_ENGINE=spatialite left
+# over from a shared/copied .env — sqlite is a dev-only convenience.
+DATABASES = build_databases(default_engine="postgis")
+if DATABASES["default"]["ENGINE"] != "django.contrib.gis.db.backends.postgis":
+    raise ImproperlyConfigured("Production must use PostGIS — refusing to start with DB_ENGINE=spatialite.")
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 

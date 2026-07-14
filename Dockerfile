@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgdal-dev \
         libproj-dev \
         libpq-dev \
+        libsqlite3-mod-spatialite \
         gcc \
     && rm -rf /var/lib/apt/lists/*
 

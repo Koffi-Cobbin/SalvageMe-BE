@@ -14,7 +14,7 @@ persistent background worker — see [Async & scheduled work](#async--scheduled-
 |---------------------|------------------------------------------------------------|
 | Framework           | Django 5.0 + Django REST Framework                       |
 | Auth                | `djangorestframework-simplejwt` — access token + httpOnly refresh cookie |
-| Database            | PostgreSQL + PostGIS                                      |
+| Database            | PostgreSQL + PostGIS (staging/prod, and optional locally); SQLite + SpatiaLite (local dev default) |
 | File storage        | [FileForge](https://github.com/Koffi-Cobbin/FileForge) (server-to-server client only) |
 | API schema          | `drf-spectacular` (OpenAPI 3)                              |
 | Filtering           | `django-filter`                                            |
@@ -49,28 +49,58 @@ needed), `urls.py`, `admin.py`, `signals.py`, `tests/`.
 
 ## Local setup
 
-### Option A — Docker (recommended, no local GDAL/Postgres install needed)
+Local dev defaults to **SQLite** (via the SpatiaLite extension, so geo search still works) — no
+database server to install or run. Set `DB_ENGINE=postgis` in `.env` if you'd rather run against a
+real Postgres+PostGIS instance locally (e.g. to debug something that behaves differently there —
+see [Known limitations](#known-limitations--follow-ups-not-silently-dropped)). Staging and
+production always use PostGIS regardless of this setting.
+
+### Option A — SQLite (default, fastest to get running)
+
+Requires: Python 3.12, GDAL/GEOS system libraries, and the SpatiaLite SQLite extension.
 
 ```bash
-cp .env.example .env          # fill in FILEFORGE_API_KEY etc. — safe defaults otherwise
+# Debian/Ubuntu:
+sudo apt-get install gdal-bin libgdal-dev libproj-dev libsqlite3-mod-spatialite
+# macOS (Homebrew):
+brew install gdal libspatialite
+
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements-dev.txt
+
+cp .env.example .env   # DB_ENGINE=spatialite is already the default in here
+
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py seed_demo_data
+python manage.py runserver
+```
+
+### Option B — Docker (Postgres + PostGIS, closer to production)
+
+```bash
+cp .env.example .env
+# then edit .env: set DB_ENGINE=postgis (docker-compose's `web` service also
+# sets DB_HOST=db for you, pointing at the `db` container)
 docker-compose up
 ```
 
-This builds the `web` image (which includes GDAL/GEOS/PostGIS client libs), starts Postgres+PostGIS
-as `db`, runs migrations automatically, and serves the API at `http://localhost:8000`.
+This builds the `web` image (GDAL/GEOS/PostGIS + SpatiaLite libs are included either way), starts
+Postgres+PostGIS as `db`, runs migrations automatically, and serves the API at
+`http://localhost:8000`.
 
-### Option B — Bare metal
+### Option C — Bare-metal Postgres
 
 Requires: Python 3.12, PostgreSQL 16 with the PostGIS extension available, and GDAL/GEOS system
-libraries (GeoDjango needs these — `apt-get install gdal-bin libgdal-dev libproj-dev` on Debian/Ubuntu).
+libraries.
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements-dev.txt
 
-cp .env.example .env          # edit DB_*, FILEFORGE_* as needed
+cp .env.example .env
+# edit .env: DB_ENGINE=postgis, and set DB_NAME/DB_USER/DB_PASSWORD/DB_HOST/DB_PORT
 
-# create the database + enable PostGIS (adjust for your local postgres setup)
 createdb salvageme
 psql -d salvageme -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
@@ -80,7 +110,7 @@ python manage.py seed_demo_data
 python manage.py runserver
 ```
 
-Verify it's up: `curl http://localhost:8000/api/health/` → `{"status": "ok", "database": true}`.
+Verify it's up (any option): `curl http://localhost:8000/api/health/` → `{"status": "ok", "database": true}`.
 
 ---
 
@@ -292,25 +322,34 @@ flagged rather than silently dropped, per the prompt's own instructions.
    (reachable from PythonAnywhere via `DB_HOST`), which is the closest faithful resolution —
    flagging this explicitly rather than silently swapping to MySQL/sqlite and losing PostGIS geo
    search.
-2. **Listing soft-delete.** `DELETE /api/v1/listings/{id}/` sets `status=removed` rather than
+2. **Local dev database is SQLite (via SpatiaLite) by default, not Postgres.** `dev.py` defaults to
+   `DB_ENGINE=spatialite` — a zero-setup local option that still supports GeoDjango's `PointField`
+   and geo lookups (unlike plain SQLite, which has no spatial support at all), via
+   `config/settings/base.py::build_databases()`. Set `DB_ENGINE=postgis` in `.env` to run dev
+   against real Postgres+PostGIS instead. `staging.py`/`prod.py` hardcode `postgis` regardless of
+   `DB_ENGINE` (with an explicit startup check that refuses to boot otherwise), so this is purely a
+   local-dev convenience, not a production behavior change. See
+   [Known limitations](#known-limitations--follow-ups-not-silently-dropped) for the one real
+   difference this introduces (distance-calculation accuracy).
+3. **Listing soft-delete.** `DELETE /api/v1/listings/{id}/` sets `status=removed` rather than
    hard-deleting the row, to preserve exchange/request history for audit purposes. The `Listing`
    model already had a `removed` status value in the required data model, which is the basis for
    this choice.
-3. **404 vs 403 on scoped list endpoints.** `BookRequestViewSet`/`ExchangeViewSet` scope their
+4. **404 vs 403 on scoped list endpoints.** `BookRequestViewSet`/`ExchangeViewSet` scope their
    `get_queryset()` to the requesting user's own requests/exchanges. A user who isn't a party to a
    given request/exchange gets a 404 (object doesn't exist *for them*) rather than a 403, to avoid
    leaking the existence of other users' requests/exchanges. A user who *is* a party but lacks
    permission for the specific action (e.g. the requester trying to `accept` their own request)
    correctly gets a 403. Both cases are covered by tests.
-4. **`Report` dedup rule.** The prompt didn't specify exact dedup semantics for reports, so this
+5. **`Report` dedup rule.** The prompt didn't specify exact dedup semantics for reports, so this
    implementation enforces "one **open** report per reporter per target" via a partial unique
    constraint — a resolved/dismissed report doesn't block a fresh report if the issue recurs later.
-5. **FileForge reconciliation job.** Because `add_listing_photo()` only ever creates a
+6. **FileForge reconciliation job.** Because `add_listing_photo()` only ever creates a
    `ListingPhoto` row after a successful synchronous FileForge upload, there's no long-lived
    "pending" state to sweep under normal operation. The daily reconciliation job instead checks for
    drift (a `ListingPhoto` whose backing FileForge file has since disappeared) rather than
    resolving stuck in-flight uploads, since the current design doesn't produce stuck uploads.
-6. **`apps.requests` app label.** The `requests` app is given an explicit `app_label = "requests_app"`
+7. **`apps.requests` app label.** The `requests` app is given an explicit `app_label = "requests_app"`
    in its `AppConfig`, purely so `django-admin`/shell output isn't ambiguous against the `requests`
    HTTP library dependency; Python's absolute-import resolution means there's no actual import
    collision either way.
@@ -323,25 +362,33 @@ Prioritized, most important first:
    available in the build environment (no daemon, restricted network egress to Docker Hub), so
    while `Dockerfile`/`docker-compose.yml` are written to spec (GDAL/PostGIS base image,
    `web`+`db` only, `.env`-driven), they haven't been run end-to-end. **Everything else in this
-   README *was* verified for real** — migrations, the full test suite, and a live smoke test all
-   ran against an actual PostgreSQL 16 + PostGIS 3.4 instance and a real running dev server in the
-   build sandbox (not mocked). Please run `docker-compose up` as a first step after cloning and
-   file an issue if anything doesn't come up cleanly.
-2. **CI workflow is written but not run against GitHub's actual runners** — same constraint as
-   above (no outbound access to github.com Actions infra from the build sandbox). Confirm on the
-   first real push.
-3. **FileForge is mocked in every test** (`unittest.mock.patch` on `get_fileforge_client`) since no
+   README *was* verified for real** — migrations and the full test suite ran against both a real
+   PostgreSQL 16 + PostGIS 3.4 instance *and* SQLite+SpatiaLite in the build sandbox (not mocked),
+   and a live dev server smoke test also ran successfully. Please run `docker-compose up` as a
+   first step after cloning and file an issue if anything doesn't come up cleanly.
+2. **SpatiaLite's distance calculations are planar, not geodesic.** PostGIS's `geography` column
+   type (used in production) computes great-circle distance; SpatiaLite has no equivalent type, so
+   the same `near=`/`radius=` geo search on local SQLite dev returns slightly different distances
+   than production would for the same coordinates — noticeable at larger radii, negligible at
+   typical neighborhood-scale searches. `DB_ENGINE=postgis` locally avoids this entirely if it
+   matters for what you're testing.
+3. **CI (`.github/workflows/ci.yml`) intentionally tests against Postgres+PostGIS, not the SQLite
+   dev default** — production-parity in CI matters more than matching the fastest local dev loop.
+4. **CI workflow is written but not run against GitHub's actual runners** — same sandbox network
+   constraint as the Docker point above (no outbound access to github.com Actions infra from the
+   build sandbox). Confirm on the first real push.
+5. **FileForge is mocked in every test** (`unittest.mock.patch` on `get_fileforge_client`) since no
    live FileForge instance was available to point at. The client wrapper
    (`common/fileforge_client.py`) itself is straightforward enough that this should translate
    cleanly, but a manual end-to-end photo upload against a real FileForge instance is worth doing
    before shipping.
-4. **Avatar upload endpoint isn't wired up.** The `User` model has `avatar_file_id`/`avatar_url`
+6. **Avatar upload endpoint isn't wired up.** The `User` model has `avatar_file_id`/`avatar_url`
    fields and `FileForgeClient` supports the same upload/delete flow used for listing photos, but
    there's no `POST /api/v1/users/me/avatar/` endpoint yet — only listing photos are wired through
    to FileForge today. Small addition, same pattern as `apps/listings/services.py::add_listing_photo`.
-5. **No rate limiting beyond `register`/`login`.** Other write-heavy endpoints (creating
+7. **No rate limiting beyond `register`/`login`.** Other write-heavy endpoints (creating
    listings/requests/reports) have no throttle scope. Low priority for a low-volume nonprofit
    platform per the prompt's own framing, but worth adding if abuse becomes a problem.
-6. **Django Admin is the only admin surface**, as the prompt explicitly allows for MVP — no
+8. **Django Admin is the only admin surface**, as the prompt explicitly allows for MVP — no
    dedicated moderation API endpoints beyond `POST /api/v1/reports/` (creation) exist; resolving
    reports is admin-only for now.

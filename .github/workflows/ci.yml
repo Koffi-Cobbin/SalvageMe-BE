@@ -28,6 +28,7 @@ jobs:
     env:
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DJANGO_SECRET_KEY: ci-test-secret-key
+      DB_ENGINE: postgis
       DB_NAME: salvageme
       DB_USER: postgres
       DB_PASSWORD: postgres
