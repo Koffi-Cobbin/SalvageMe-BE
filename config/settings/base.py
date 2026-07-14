@@ -21,7 +21,7 @@ if env_file.exists():
 
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="insecure-dev-key-change-me")
 DEBUG = False
-ALLOWED_HOSTS: list[str] = ["https://salvageme.pythonanywhere.com"]
+ALLOWED_HOSTS: list[str] = []
 
 # ---------------------------------------------------------------------------
 # Applications

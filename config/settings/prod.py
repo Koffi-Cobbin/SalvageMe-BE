@@ -8,7 +8,7 @@ from .base import build_databases, env
 # for the exact `os.environ["DJANGO_SETTINGS_MODULE"]` wiring.
 
 DEBUG = False
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["https://salvageme.pythonanywhere.com"])  # e.g. ["yourusername.pythonanywhere.com"]
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["salvageme.pythonanywhere.com"])  # bare hostname only — no scheme, no path
 
 # Production must use PostGIS, regardless of any DB_ENGINE=spatialite left
 # over from a shared/copied .env — sqlite is a dev-only convenience.
