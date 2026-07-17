@@ -249,8 +249,8 @@ CORS_ALLOW_CREDENTIALS = True
 # FileForge (server-to-server file storage boundary — see
 # common/fileforge_client.py). Never exposed to the frontend.
 # ---------------------------------------------------------------------------
-FILEFORGE_BASE_URL = env("FILEFORGE_BASE_URL", default="http://localhost:9000")
-FILEFORGE_API_KEY = env("FILEFORGE_API_KEY", default="")
+FILEFORGE_BASE_URL = env("FILEFORGE_BASE_URL", default="https://fileforge1.pythonanywhere.com")
+FILEFORGE_API_KEY = env("FILEFORGE_API_KEY", default="ffk_1IVK8jHO23O-qCORwplwAhud38j5Ks14QmPpG_uY")
 FILEFORGE_TIMEOUT_SECONDS = env.float("FILEFORGE_TIMEOUT_SECONDS", default=10.0)
 
 # ---------------------------------------------------------------------------
