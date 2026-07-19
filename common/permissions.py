@@ -36,3 +36,47 @@ class IsStaffOrReadOnly(BasePermission):
 class IsStaff(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_staff)
+
+
+class HasCapability(BasePermission):
+    """
+    Usage: permission_classes = [HasCapability("listings.remove_restore")]
+
+    Checks request.user.admin_role.capabilities — see docs/ADMIN_API_PLAN.md.
+    Completely decoupled from role *names*; a role can be renamed or have
+    its capabilities changed at runtime with no code change needed here.
+    """
+
+    def __init__(self, capability: str):
+        self.capability = capability
+
+    def __call__(self):
+        # DRF instantiates permission_classes entries with no args; this
+        # lets HasCapability("x") itself be used directly in the list
+        # (already-instantiated) rather than needing a factory wrapper.
+        return self
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.has_capability(self.capability)
+        )
+
+
+class HasAnyCapability(BasePermission):
+    """Usage: permission_classes = [HasAnyCapability("dropoff.view", "dropoff.manage", "dropoff.manage_all")]"""
+
+    def __init__(self, *capabilities: str):
+        self.capabilities = capabilities
+
+    def __call__(self):
+        return self
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.admin_role
+            and any(c in request.user.admin_role.capabilities for c in self.capabilities)
+        )

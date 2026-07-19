@@ -10,6 +10,12 @@ class DropOffPoint(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="coordinated_dropoffs"
     )
     location = gis_models.PointField(null=True, blank=True, geography=True, srid=4326)
+    # Users with the scoped `dropoff.manage` capability (as opposed to the
+    # unscoped `dropoff.manage_all`) can only see/edit points they're
+    # assigned to here — see docs/ADMIN_API_PLAN.md "Drop-off scoping".
+    managers = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="managed_dropoff_points"
+    )
 
     class Meta:
         ordering = ["name"]

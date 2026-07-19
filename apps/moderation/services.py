@@ -2,6 +2,8 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from apps.notifications.services import notify_report_resolved
+
 from .models import AuditLog, Report
 
 
@@ -36,7 +38,9 @@ def create_report(*, reporter, target_type: str, target_id: int, reason: str, de
 
 
 def resolve_report(*, report: Report, acting_user, outcome: str) -> Report:
-    if not acting_user.is_staff:
+    has_legacy_staff_access = acting_user.is_staff
+    has_capability = acting_user.has_capability("reports.resolve") if hasattr(acting_user, "has_capability") else False
+    if not (has_legacy_staff_access or has_capability):
         raise PermissionDenied("Only staff/moderators can resolve reports.")
 
     if report.status != Report.Status.OPEN:
@@ -57,4 +61,5 @@ def resolve_report(*, report: Report, acting_user, outcome: str) -> Report:
         target_id=report.id,
         metadata={"reported_target_type": report.target_type, "reported_target_id": report.target_id},
     )
+    notify_report_resolved(report)
     return report

@@ -67,6 +67,54 @@ def cancel_exchange(*, exchange: Exchange, acting_user) -> Exchange:
     return exchange
 
 
+def force_cancel_exchange(*, exchange: Exchange, acting_user, reason: str) -> Exchange:
+    """
+    Admin-only override for a stuck/abandoned exchange neither party is
+    acting on — bypasses the donor/recipient-only check in
+    _assert_is_party. Requires a reason, recorded in the AuditLog, since a
+    force-override with no reason on file is a worse trail than what
+    exists for the normal party-initiated cancel. See docs/ADMIN_API_PLAN.md.
+    """
+    if exchange.status != Exchange.Status.SCHEDULED:
+        raise ValidationError({"detail": f"Exchange is already {exchange.status}.", "code": "invalid_transition"})
+
+    exchange.status = Exchange.Status.CANCELLED
+    exchange.save(update_fields=["status"])
+    exchange.listing.revert_to_available()
+
+    from apps.moderation.services import record_audit_log
+
+    record_audit_log(
+        actor=acting_user, action="exchange_force_cancelled", target_type="exchange", target_id=exchange.id,
+        metadata={"reason": reason},
+    )
+    return exchange
+
+
+def force_complete_exchange(*, exchange: Exchange, acting_user, reason: str) -> Exchange:
+    """
+    Admin-only override for a handoff confirmed to have happened outside
+    the app (e.g. via a support ticket) but neither party marked complete.
+    Same reason-required treatment as force_cancel_exchange.
+    """
+    if exchange.status != Exchange.Status.SCHEDULED:
+        raise ValidationError({"detail": f"Exchange is already {exchange.status}.", "code": "invalid_transition"})
+
+    exchange.status = Exchange.Status.COMPLETED
+    exchange.completed_at = timezone.now()
+    exchange.save(update_fields=["status", "completed_at"])
+    exchange.listing.mark_claimed()
+
+    from apps.moderation.services import record_audit_log
+
+    record_audit_log(
+        actor=acting_user, action="exchange_force_completed", target_type="exchange", target_id=exchange.id,
+        metadata={"reason": reason},
+    )
+    notify_exchange_completed(exchange)
+    return exchange
+
+
 def rate_exchange(*, exchange: Exchange, acting_user, score: int, comment: str = "") -> UserRating:
     _assert_is_party(exchange, acting_user)
 

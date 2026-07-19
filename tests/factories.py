@@ -2,12 +2,23 @@ import factory
 from django.contrib.gis.geos import Point
 from factory.django import DjangoModelFactory
 
-from apps.accounts.models import User, UserRating
+from apps.accounts.models import AdminRole, User, UserRating
 from apps.dropoff.models import DropOffPoint
 from apps.exchanges.models import Exchange
 from apps.listings.models import Category, Listing, ListingPhoto
 from apps.moderation.models import AuditLog, Report
+from apps.partners.models import PartnerApplication
 from apps.requests.models import BookRequest
+
+
+class AdminRoleFactory(DjangoModelFactory):
+    class Meta:
+        model = AdminRole
+        django_get_or_create = ("name",)
+
+    name = factory.Sequence(lambda n: f"Role {n}")
+    description = "A test role."
+    capabilities = factory.LazyFunction(list)
 
 
 class UserFactory(DjangoModelFactory):
@@ -116,3 +127,12 @@ class AuditLogFactory(DjangoModelFactory):
     action = "test_action"
     target_type = "listing"
     target_id = 1
+
+
+class PartnerApplicationFactory(DjangoModelFactory):
+    class Meta:
+        model = PartnerApplication
+
+    applicant_name = factory.Sequence(lambda n: f"Applicant {n}")
+    applicant_email = factory.LazyAttribute(lambda o: f"{o.applicant_name.lower().replace(' ', '')}@example.com")
+    applicant_user = factory.SubFactory(UserFactory)

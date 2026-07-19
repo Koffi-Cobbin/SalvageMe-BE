@@ -4,7 +4,7 @@ from django.contrib.gis.admin import GISModelAdmin
 
 from apps.moderation.services import record_audit_log
 
-from .models import User, UserRating
+from .models import AdminRole, User, UserRating
 
 
 class ListingInline(admin.TabularInline):
@@ -73,3 +73,10 @@ class UserRatingAdmin(admin.ModelAdmin):
     list_display = ["rated_user", "rated_by", "exchange", "score", "created_at"]
     list_filter = ["score"]
     search_fields = ["rated_user__username", "rated_by__username"]
+
+
+@admin.register(AdminRole)
+class AdminRoleAdmin(admin.ModelAdmin):
+    list_display = ["name", "is_protected", "created_at"]
+    search_fields = ["name"]
+    readonly_fields = ["is_protected"]
