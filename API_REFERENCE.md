@@ -25,8 +25,23 @@ below if you want to generate a typed client instead of reading this by hand.
   - [Exchanges](#exchanges)
   - [Drop-off points](#drop-off-points)
   - [Reports](#reports)
+  - [Notifications](#notifications)
+  - [Partner applications](#partner-applications)
   - [Impact stats](#impact-stats)
   - [Health check](#health-check)
+- [Admin API](#admin-api)
+  - [Roles & capabilities](#roles--capabilities)
+  - [Admin: Users](#admin-users)
+  - [Admin: Listings](#admin-listings)
+  - [Admin: Categories](#admin-categories)
+  - [Admin: Reports](#admin-reports)
+  - [Admin: Audit log](#admin-audit-log)
+  - [Admin: Exchanges](#admin-exchanges)
+  - [Admin: Requests](#admin-requests)
+  - [Admin: Ratings](#admin-ratings)
+  - [Admin: Drop-off points](#admin-drop-off-points)
+  - [Admin: Dashboard & stats](#admin-dashboard--stats)
+  - [Admin: Partner applications](#admin-partner-applications)
 - [Enums reference](#enums-reference)
 - [Common patterns](#common-patterns)
 - [End-to-end example flow](#end-to-end-example-flow)
@@ -209,6 +224,23 @@ No body needed (reads the cookie same as refresh). Works even without a valid `A
 header — it only needs the refresh cookie. Blacklists the refresh token and clears the cookie.
 
 Response: `204 No Content`.
+
+#### `POST /auth/set-password/`
+
+Public — the token itself is the auth, no `Authorization` header needed. Used for two cases: an
+account created with no password (e.g. via the [partner application flow](#partner-applications))
+setting one for the first time, and (in the future) a general "forgot password" flow reusing this
+same endpoint.
+
+Request:
+```json
+{ "uid": "MTIz", "token": "abc123-some-signed-token", "new_password": "NewSecurePassword!" }
+```
+`uid` and `token` come from the link in the invite/reset email — the frontend doesn't construct
+these itself, just reads them out of the URL the email links to and passes them through unchanged.
+
+Response: `204 No Content` on success. Also sets the account's `is_verified` to `true`. `400`/
+`code: "invalid_token"` if the link is malformed, expired, or already used.
 
 ---
 
@@ -575,8 +607,10 @@ Single point, same shape.
 
 ### Reports
 
-Flagging a listing or user for moderation. Creation only — there's no API endpoint to view your
-own past reports or their resolution status (resolution happens in Django Admin, moderator-side).
+Flagging a listing or user for moderation. Creation only from this public API — there's no
+endpoint here to view your own past reports or their resolution status directly, but **you do get
+a [notification](#notifications) once staff resolve or dismiss it**. Resolution itself happens via
+the [Admin API](#admin-reports) or Django Admin, moderator-side.
 
 #### `POST /reports/` 🔒
 
@@ -599,6 +633,135 @@ Response `201`:
 
 `400`/`code: "duplicate_report"` if you already have an **open** report against this exact
 target — resolved/dismissed ones don't block a fresh report if the issue recurs.
+
+---
+
+### Notifications
+
+In-app notifications — every event that used to only send an email (a request being accepted, an
+exchange reminder, a report being resolved, and so on) now also creates a row here, so you can
+build a notification bell/inbox instead of relying on email alone. Always scoped to the
+authenticated user — you never see another user's notifications.
+
+#### `GET /notifications/` 🔒
+
+[Paginated](#pagination). Query params: `?is_read=false` (or `true`), `?category=exchange_reminder`
+(see [Notification category](#notification-category) for the full list).
+
+Response `200`:
+```json
+{
+  "next": null, "previous": null,
+  "results": [
+    {
+      "id": 12,
+      "category": "request_accepted",
+      "title": "Your request for 'Intro to Algebra' was accepted",
+      "body": "Great news — your request was accepted. Coordinate the handoff via exchange #9.",
+      "target_type": "exchange",
+      "target_id": 9,
+      "is_read": false,
+      "read_at": null,
+      "created_at": "2026-07-19T10:05:00Z"
+    }
+  ]
+}
+```
+`target_type`/`target_id` let you build one generic "click a notification, navigate to its target"
+handler — `target_type` values you'll see: `"request"`, `"exchange"`, `"report"`, `"user"`,
+`"partner_application"`.
+
+#### `GET /notifications/{id}/` 🔒
+
+Single notification, same shape. `404` if it isn't yours.
+
+#### `GET /notifications/unread-count/` 🔒
+
+For a bell-icon badge:
+```json
+{ "count": 4 }
+```
+No push/websocket delivery — poll this (e.g. on route change, or a short interval) rather than
+expecting it to update in real time.
+
+#### `POST /notifications/{id}/read/` 🔒
+
+No body. Marks it read.
+
+Response `200`: the updated notification (`is_read: true`, `read_at` set).
+
+#### `POST /notifications/mark-all-read/` 🔒
+
+No body. Marks every one of your unread notifications as read in one call — the "clear the badge"
+action.
+
+Response `200`:
+```json
+{ "marked_read": 4 }
+```
+
+#### `DELETE /notifications/{id}/` 🔒
+
+Dismiss/remove one of your own notifications. `204 No Content`. `404` if it isn't yours.
+
+---
+
+### Partner applications
+
+Public form for someone to apply to become a Partner and/or offer their location as a drop-off
+point. Staff review these via the [Admin API](#admin-partner-applications).
+
+#### `POST /partner-applications/` 🔓 (public — auth optional)
+
+Request:
+```json
+{
+  "applicant_name": "Amara Okafor",
+  "applicant_email": "amara@riversidecc.example",
+  "applicant_phone": "+44 7123 456789",
+  "organization_name": "Riverside Community Center",
+  "message": "We'd like to help distribute books to local families.",
+  "proposed_dropoff_name": "Riverside Community Center",
+  "proposed_dropoff_address": "12 Riverside Walk, London",
+  "proposed_latitude": 51.5072,
+  "proposed_longitude": -0.1276
+}
+```
+Everything is optional **if you're authenticated** — your own account's name/email/phone are used
+automatically and anything you send for those three fields is ignored (the server never trusts a
+logged-in request to claim a different identity than the account making it). **If you're not
+authenticated, `applicant_name` and `applicant_email` are required.** Omit the `proposed_*` fields
+entirely if you're only applying for a role, not offering a physical location.
+
+**What happens next, so you can set expectations in your UI:**
+- If you're logged in, your application is immediately ready for review — nothing further needed
+  from you.
+- If you're not logged in: a new account is created for you right away with the email you
+  provided (or your existing account is used, if that email already has one) — **this account is
+  fully usable immediately, regardless of whether the application is later approved or rejected**.
+  You'll get an email with a link to verify your address and set a password. Your application only
+  becomes visible to reviewers once you complete that step.
+
+Response `201`:
+```json
+{
+  "id": 4,
+  "applicant_name": "Amara Okafor",
+  "applicant_email": "amara@riversidecc.example",
+  "applicant_phone": "+44 7123 456789",
+  "organization_name": "Riverside Community Center",
+  "message": "We'd like to help distribute books to local families.",
+  "proposed_dropoff_name": "Riverside Community Center",
+  "proposed_dropoff_address": "12 Riverside Walk, London",
+  "email_verified_at": null,
+  "status": "pending",
+  "rejection_reason": "",
+  "created_at": "2026-07-19T10:00:00Z"
+}
+```
+
+`400`/`code: "duplicate_application"` if this email already has a **pending** application —
+a rejected one doesn't block reapplying.
 
 ---
 
@@ -638,6 +801,437 @@ Response `200`:
 { "status": "ok", "database": true }
 ```
 `503` with `{"status": "degraded", "database": false}` if the database is unreachable.
+
+---
+
+## Admin API
+
+A separate surface, all under `/api/v1/admin/`, for building a custom admin/moderation panel.
+**Access isn't a simple "is staff" boolean** — it's built on named, admin-creatable **roles**, each
+holding a set of fine-grained **capabilities**. A role can be created, renamed, or have its
+capabilities changed at any time by whoever holds the `roles.manage` capability, with no code
+deploy required. Every endpoint below lists the exact capability it requires.
+
+### Roles & capabilities
+
+#### `GET /admin/me/` 🔒 (any authenticated user — no capability required)
+
+Call this once after login to decide whether to show admin navigation **at all**. A normal user
+gets `can_access_admin: false` and an empty capability list — hide the entire admin section of
+your UI on that response rather than letting individual admin calls 403 one at a time.
+
+Response `200`:
+```json
+{
+  "admin_role": { "id": 3, "name": "Content Moderator" },
+  "capabilities": ["listings.remove_restore", "reports.resolve", "reports.view", "listings.view"],
+  "can_access_admin": true
+}
+```
+For a normal user: `{ "admin_role": null, "capabilities": [], "can_access_admin": false }`. Use
+the `capabilities` array to show/hide individual admin sections/buttons too — e.g. hide the
+"Categories" nav item if `categories.manage` isn't in the list.
+
+#### `GET /admin/capabilities/` 🔒`roles.manage`
+
+The full fixed vocabulary of capabilities — for building the checkbox list in a role-editor UI.
+
+Response `200`:
+```json
+[
+  { "code": "users.view", "description": "View user profiles and account status" },
+  { "code": "users.suspend", "description": "Suspend / reactivate user accounts" }
+]
+```
+See [Capabilities](#capabilities) for the complete list.
+
+#### `GET /admin/roles/` 🔒`roles.manage`
+
+Not paginated (there are typically only a handful of roles). Plain array:
+```json
+[
+  { "id": 1, "name": "Admin", "description": "Full access to every admin capability. Built-in and protected.", "capabilities": ["users.view", "..."], "is_protected": true, "created_at": "...", "updated_at": "..." },
+  { "id": 3, "name": "Content Moderator", "description": "Handles listing/report moderation.", "capabilities": ["listings.remove_restore", "reports.resolve"], "is_protected": false, "created_at": "...", "updated_at": "..." }
+]
+```
+`is_protected: true` marks the single built-in role seeded when the system was set up — see notes
+on `PATCH`/`DELETE` below for what that restricts.
+
+#### `GET /admin/roles/{id}/` 🔒`roles.manage`
+
+Single role, same shape.
+
+#### `POST /admin/roles/` 🔒`roles.manage`
+
+Request:
+```json
+{ "name": "Content Moderator", "description": "Handles listing/report moderation.", "capabilities": ["listings.remove_restore", "reports.resolve", "reports.view", "listings.view"] }
+```
+`name` required. `capabilities` — array of capability codes; unknown codes are rejected. `400`/
+`code: "unknown_capability"` for a bad code, `400`/`code: "duplicate_name"` for a repeated name.
+
+Response `201`: the created role.
+
+#### `PATCH /admin/roles/{id}/` 🔒`roles.manage`
+
+Any subset of `name`, `description`, `capabilities`. **The protected built-in role's
+`capabilities` cannot be changed** (`400`/`code: "role_protected"`) — its `name`/`description`
+can still be edited for cosmetic reasons. This guarantees at least one role always has every
+capability, so the system can never be edited into a state where nobody can manage roles.
+
+Response `200`: the updated role.
+
+#### `DELETE /admin/roles/{id}/` 🔒`roles.manage`
+
+`400`/`code: "role_protected"` for the built-in role. `400`/`code: "role_in_use"` if any user
+currently holds this role — reassign or clear their role first via
+[`assign-role`](#post-adminusersidassign-role-rolesmanage). `204 No Content` on success.
+
+#### `POST /admin/users/{id}/assign-role/` 🔒`roles.manage`
+
+Documented under [Admin: Users](#admin-users) below, listed here too since it's the other half of
+role management.
+
+---
+
+### Admin: Users
+
+#### `GET /admin/users/` 🔒`users.view`
+
+[Paginated](#pagination). Filter: `?role=donor`, `?is_verified=true`, `?is_active=false`.
+
+Response item shape:
+```json
+{
+  "id": 42, "username": "priya_reads", "email": "priya@example.com", "phone": "+44 7123 456789",
+  "role": "recipient", "is_verified": false, "is_active": true,
+  "admin_role": { "id": 3, "name": "Content Moderator" },
+  "date_joined": "2026-06-01T09:00:00Z"
+}
+```
+`admin_role` is `null` for a normal user — this is the **full** profile (unlike `PublicUserSerializer`
+elsewhere in this API), since this is a staff-only view.
+
+#### `GET /admin/users/{id}/` 🔒`users.view`
+
+Single user, same shape.
+
+#### `PATCH /admin/users/{id}/` 🔒`users.edit`
+
+Any subset of `role`, `phone`, `is_verified`. **Does not include `admin_role`** — that's
+exclusively via `assign-role` below, gated by the separate `roles.manage` capability, so a role
+with `users.edit` but not `roles.manage` can't grant admin access through the back door via a
+generic field edit.
+
+Response `200`: the updated user.
+
+#### `POST /admin/users/{id}/suspend/` 🔒`users.suspend`
+
+No body. Sets the account inactive (they'll be unable to log in). `400`/`code: "already_suspended"`
+if already inactive.
+
+Response `200`: the updated user.
+
+#### `POST /admin/users/{id}/reactivate/` 🔒`users.suspend`
+
+No body. `400`/`code: "already_active"` if already active. Same capability as `suspend` — they're
+the inverse of one power, not two separate ones.
+
+#### `POST /admin/users/{id}/assign-role/` 🔒`roles.manage`
+
+Request:
+```json
+{ "admin_role_id": 3 }
+```
+`admin_role_id: null` revokes admin access entirely, back to a normal user. `404` if the role id
+doesn't exist.
+
+Response `200`: the updated user (with the new `admin_role`).
+
+⚠️ **Safeguard:** rejected with `400`/`code: "last_role_manager"` if this specific change would
+leave **zero users** able to manage roles at all — you can't lock everyone (including yourself)
+out of the role system this way.
+
+---
+
+### Admin: Listings
+
+#### `GET /admin/listings/` 🔒`listings.view`
+
+[Paginated](#pagination). Filter: `?category=`, `?condition=`, `?status=`. **Unlike the public
+`/listings/` endpoint, returns every status including `removed`** — staff need to see removed
+listings to review/undo a removal.
+
+Response items match the [public listing shape](#listings).
+
+#### `GET /admin/listings/{id}/` 🔒`listings.view`
+
+Single listing, any status.
+
+#### `POST /admin/listings/{id}/remove/` 🔒`listings.remove_restore`
+
+No body. Sets `status: "removed"`.
+
+#### `POST /admin/listings/{id}/restore/` 🔒`listings.remove_restore`
+
+No body. Sets `status: "available"`. `400`/`code: "invalid_transition"` if the listing is
+currently `pending`/`claimed` — only `removed → available` is a meaningful restore.
+
+#### `DELETE /admin/listings/{id}/photos/{photo_id}/` 🔒`listings.delete_photo`
+
+Removes a single photo without touching the rest of the listing. `204 No Content`. `404`/
+`code: "not_found"` if that photo doesn't belong to this listing. `502` if the upstream
+file-storage service fails — safe to retry.
+
+---
+
+### Admin: Categories
+
+Full CRUD — unlike the [public `/categories/`](#categories) endpoint, which is read-only.
+
+#### `GET /admin/categories/`, `POST /admin/categories/`, `PATCH /admin/categories/{id}/`, `DELETE /admin/categories/{id}/` 🔒`categories.manage`
+
+Not paginated. Same shape as the public endpoint (`id`, `name`, `slug`) — `slug` auto-generated
+from `name` if omitted on create. `DELETE` returns `400`/`code: "category_in_use"` (not a raw 500)
+if any listing still references it — remove/recategorize those listings first.
+
+---
+
+### Admin: Reports
+
+#### `GET /admin/reports/` 🔒`reports.view`
+
+[Paginated](#pagination). Filter: `?status=`, `?reason=`, `?target_type=`. Every report, not
+scoped to who filed it.
+
+Response items match the [public report shape](#reports), plus `status`.
+
+#### `GET /admin/reports/{id}/` 🔒`reports.view`
+
+Single report, same shape.
+
+#### `POST /admin/reports/{id}/resolve/` 🔒`reports.resolve`
+
+No body. Sets `status: "resolved"` and **notifies the reporter** (see [Notifications](#notifications)).
+
+#### `POST /admin/reports/{id}/dismiss/` 🔒`reports.resolve`
+
+No body. Sets `status: "dismissed"`, same reporter notification. Resolve and dismiss share one
+capability — both are "you've handled this report," not two separate powers.
+
+---
+
+### Admin: Audit log
+
+Read-only trail of every admin action — role/capability changes, suspensions, removals, report
+resolutions, force-overrides, and so on.
+
+#### `GET /admin/audit-log/` 🔒`auditlog.view`
+
+[Paginated](#pagination). Filter: `?action=`, `?target_type=`. Ordered newest-first.
+
+Response item shape:
+```json
+{
+  "id": 88, "actor": 3, "actor_username": "staffuser", "action": "listing_removed",
+  "target_type": "listing", "target_id": 7, "metadata": {}, "created_at": "2026-07-19T10:00:00Z"
+}
+```
+
+#### `GET /admin/audit-log/{id}/` 🔒`auditlog.view`
+
+Single entry, including the full `metadata` payload (shape varies by `action` — e.g. a
+`user_role_assigned` entry's metadata has `old_role_id`/`new_role_id`).
+
+---
+
+### Admin: Exchanges
+
+#### `GET /admin/exchanges/` 🔒`exchanges.view`
+
+[Paginated](#pagination). Filter: `?status=`. **Every** exchange, unlike the public
+[`/exchanges/`](#exchanges) endpoint (which is scoped to the current user).
+
+#### `GET /admin/exchanges/{id}/` 🔒`exchanges.view`
+
+Single exchange, same shape as the public endpoint (including `counterpart_contact`, computed the
+same way — see [Contact/location privacy](#contactlocation-privacy)).
+
+#### `POST /admin/exchanges/{id}/force-cancel/` 🔒`exchanges.force_override`
+
+For a stuck/abandoned exchange neither party is acting on — bypasses the normal donor/recipient-only
+restriction. Request:
+```json
+{ "reason": "Both parties unresponsive for 3 weeks; listing needs to be freed up." }
+```
+`reason` is **required** — every force-override is recorded in the [audit log](#admin-audit-log)
+with it. `400`/`code: "invalid_transition"` if the exchange isn't currently `scheduled`.
+
+#### `POST /admin/exchanges/{id}/force-complete/` 🔒`exchanges.force_override`
+
+Same shape and `reason` requirement as `force-cancel`, for a handoff confirmed to have happened
+outside the app but never marked complete by either party.
+
+---
+
+### Admin: Requests
+
+Read-only support visibility — there's no admin power to accept/decline on someone's behalf, since
+that's inherently the listing owner's call.
+
+#### `GET /admin/requests/` 🔒`requests.view`
+
+[Paginated](#pagination). Filter: `?status=`. Every request, not scoped to the current user.
+
+#### `GET /admin/requests/{id}/` 🔒`requests.view`
+
+Single request.
+
+---
+
+### Admin: Ratings
+
+Read-only, for trust & safety review.
+
+#### `GET /admin/ratings/` 🔒`ratings.view`
+
+[Paginated](#pagination). Filter: `?score=`.
+
+#### `GET /admin/ratings/{id}/` 🔒`ratings.view`
+
+Single rating.
+
+---
+
+### Admin: Drop-off points
+
+Full CRUD — unlike the [public `/dropoff-points/`](#drop-off-points) endpoint (read-only). **This
+is genuinely scoped**: a user with `dropoff.manage` only sees/edits drop-off points they're
+assigned to as a manager; `dropoff.manage_all` sees/edits every point.
+
+#### `GET /admin/dropoff-points/` 🔒`dropoff.view`, `dropoff.manage`, or `dropoff.manage_all`
+
+Not paginated. Response items:
+```json
+{
+  "id": 2, "name": "Riverside Community Center", "address": "12 Riverside Walk, London",
+  "latitude": 51.5072, "longitude": -0.1276, "coordinator": 5,
+  "managers": [{ "id": 42, "username": "amara" }]
+}
+```
+Scoped to your assigned points unless you hold `dropoff.manage_all`.
+
+#### `GET /admin/dropoff-points/{id}/` 🔒 same as above
+
+Single point. `404` (not `403`) if it's outside your scope and you don't hold `dropoff.manage_all`.
+
+#### `POST /admin/dropoff-points/` 🔒`dropoff.manage_all` **only**
+
+```json
+{ "name": "New Point", "address": "1 Main St", "latitude": 51.5, "longitude": -0.1, "coordinator": 5 }
+```
+Deliberately not available to plain `dropoff.manage` — a brand-new point has no managers yet, so
+there's nothing to scope creation to.
+
+#### `PATCH /admin/dropoff-points/{id}/` 🔒`dropoff.manage` (your own points) or `dropoff.manage_all` (any)
+
+Same fields as create, any subset. `404` if outside your scope.
+
+#### `DELETE /admin/dropoff-points/{id}/` 🔒 same as `PATCH`
+
+`204 No Content`. Always safe — exchanges referencing this point just lose their `dropoff_point`
+reference rather than being blocked.
+
+#### `POST /admin/dropoff-points/{id}/assign-managers/` 🔒`dropoff.manage_all` **only**
+
+Request:
+```json
+{ "user_ids": [42, 57] }
+```
+**Replaces** the full manager list for this point (not additive — resend the complete set each
+time). Deliberately gated to `dropoff.manage_all`, not plain `dropoff.manage` — a scoped manager
+can run their own location but can't grant other people access to it.
+
+Response `200`: the updated point, with its new `managers` list.
+
+---
+
+### Admin: Dashboard & stats
+
+#### `GET /admin/dashboard/` 🔒`dashboard.view`
+
+A small set of counts for an admin landing page, computed fresh on every call (not cached).
+
+Response `200`:
+```json
+{
+  "open_reports_count": 3,
+  "pending_requests_count": 12,
+  "unverified_users_count": 45,
+  "listings_created_today": 7,
+  "scheduled_exchanges_count": 9
+}
+```
+
+#### `GET /admin/stats/history/` 🔒`dashboard.view`
+
+[Paginated](#pagination). List of [impact-stats](#impact-stats) snapshots over time (for a trend
+chart) — the same object shape as `GET /stats/impact/`, just historical.
+
+#### `POST /admin/stats/recompute/` 🔒`stats.recompute`
+
+No body. Manually triggers a fresh snapshot rather than waiting for the next scheduled run — a
+"refresh now" button. Separate capability from `dashboard.view` since this one writes.
+
+Response `200`: the new snapshot, same shape as [`GET /stats/impact/`](#impact-stats).
+
+---
+
+### Admin: Partner applications
+
+#### `GET /admin/partner-applications/` 🔒`partner_applications.review`
+
+[Paginated](#pagination). Filter: `?status=`.
+
+Response items match the [public submission response shape](#partner-applications).
+
+#### `GET /admin/partner-applications/{id}/` 🔒`partner_applications.review`
+
+Single application. `email_verified_at` will be set — an application only reaches this list once
+its email is verified (that's what triggers the reviewer notification in the first place).
+
+#### `POST /admin/partner-applications/{id}/approve/` 🔒`partner_applications.review`
+
+Request:
+```json
+{ "admin_role_id": 3, "assign_dropoff_manager": true }
+```
+`admin_role_id` **required** — pick any existing role by id (see [`GET /admin/roles/`](#get-adminroles-rolesmanage));
+there's no hardcoded "Partner" role, you decide what this application actually grants.
+`assign_dropoff_manager` defaults `true` — set `false` to grant the role without also creating the
+proposed drop-off point, if the application included one.
+
+**What this does:** grants the role to the applicant's account (which already exists — see
+[Partner applications](#partner-applications) for why), and, if the application proposed a
+drop-off location and `assign_dropoff_manager` is true, creates a `DropOffPoint` from those
+details and adds the applicant as its manager.
+
+`400`/`code: "email_not_verified"` if somehow called before verification. `400`/
+`code: "already_reviewed"` if not currently `pending`.
+
+Response `200`: the updated application (`status: "approved"`).
+
+#### `POST /admin/partner-applications/{id}/reject/` 🔒`partner_applications.review`
+
+Request:
+```json
+{ "reason": "We don't currently have coverage in that area." }
+```
+
+**The applicant's account is completely untouched** — they keep full normal platform access and
+can submit a new application later.
+
+Response `200`: the updated application (`status: "rejected"`).
 
 ---
 
@@ -689,8 +1283,61 @@ Response `200`:
 `spam` \| `inappropriate` \| `misrepresented` \| `no_show` \| `other`
 
 #### Report status
-`open` \| `resolved` \| `dismissed` — the latter two are only ever set by a moderator in Django
-Admin, never via the public API.
+`open` \| `resolved` \| `dismissed` — the latter two are set via the
+[Admin API](#post-adminreportsidresolve-reportsresolve) (`resolve`/`dismiss`) or Django Admin,
+never by the person who filed the report.
+
+#### Notification category
+| Value | Meaning |
+|---|---|
+| `request_received` | Someone requested one of your listings. |
+| `request_accepted` | A request you sent was accepted. |
+| `request_declined` | A request you sent was declined. |
+| `exchange_scheduled` | An exchange you're party to got a scheduled time. |
+| `exchange_completed` | An exchange you're party to completed — you can now rate the other party. |
+| `exchange_reminder` | An upcoming exchange reminder. |
+| `report_resolved` | A report you filed was resolved or dismissed. |
+| `partner_application_ready` | (reviewers only) A new partner application is ready for review. |
+| `partner_application_approved` | Your partner application was approved. |
+| `partner_application_rejected` | Your partner application was not approved. |
+| `role_assigned` | Your admin role changed (granted, changed, or revoked). |
+| `system` | Generic/catch-all. |
+
+#### Partner application status
+| Value | Meaning |
+|---|---|
+| `pending` | Submitted, awaiting email verification and/or review. |
+| `approved` | A role (and optionally a drop-off point) was granted. |
+| `rejected` | Not approved — the applicant's account is unaffected and they can reapply. |
+
+#### Capabilities
+
+The full fixed vocabulary an [admin role](#roles--capabilities) can be built from — also
+available live via [`GET /admin/capabilities/`](#get-admincapabilities-rolesmanage):
+
+| Code | Grants |
+|---|---|
+| `users.view` | View user profiles and account status |
+| `users.suspend` | Suspend / reactivate user accounts |
+| `users.edit` | Edit a user's profile fields directly |
+| `roles.manage` | Create, edit, delete roles and assign them to users |
+| `listings.view` | View listings, including removed ones |
+| `listings.remove_restore` | Remove / restore listings |
+| `listings.delete_photo` | Delete an individual listing photo |
+| `categories.manage` | Create / edit / delete categories |
+| `reports.view` | View filed reports |
+| `reports.resolve` | Resolve / dismiss reports |
+| `exchanges.view` | View all exchanges |
+| `exchanges.force_override` | Force-cancel / force-complete a stuck exchange |
+| `requests.view` | View all book requests |
+| `ratings.view` | View all user ratings |
+| `dropoff.view` | View drop-off points |
+| `dropoff.manage` | Create / edit / delete drop-off points assigned to you |
+| `dropoff.manage_all` | Create / edit / delete any drop-off point, not just assigned ones |
+| `auditlog.view` | View the admin action audit log |
+| `dashboard.view` | View the admin dashboard summary |
+| `stats.recompute` | Manually trigger an impact-stats recompute |
+| `partner_applications.review` | Review, approve, or reject partner/drop-off applications |
 
 ---
 
