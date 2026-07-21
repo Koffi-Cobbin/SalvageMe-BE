@@ -4,7 +4,7 @@ from django.contrib.gis.admin import GISModelAdmin
 
 from apps.moderation.services import record_audit_log
 
-from .models import AdminRole, User, UserRating
+from .models import AdminRole, FeaturedDonor, User, UserRating
 
 
 class ListingInline(admin.TabularInline):
@@ -80,3 +80,10 @@ class AdminRoleAdmin(admin.ModelAdmin):
     list_display = ["name", "is_protected", "created_at"]
     search_fields = ["name"]
     readonly_fields = ["is_protected"]
+
+
+@admin.register(FeaturedDonor)
+class FeaturedDonorAdmin(admin.ModelAdmin):
+    list_display = ["user", "featured_from", "featured_until", "created_by"]
+    search_fields = ["user__username"]
+    readonly_fields = ["created_by"]

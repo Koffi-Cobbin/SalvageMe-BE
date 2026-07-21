@@ -8,11 +8,13 @@ from .admin_views import (
     AdminUserRatingViewSet,
     AdminUserViewSet,
 )
+from .leaderboard_views import AdminFeaturedDonorViewSet
 
 router = DefaultRouter()
 router.register("roles", AdminRoleViewSet, basename="admin-role")
 router.register("users", AdminUserViewSet, basename="admin-user")
 router.register("ratings", AdminUserRatingViewSet, basename="admin-rating")
+router.register("leaderboard/featured", AdminFeaturedDonorViewSet, basename="admin-featured-donor")
 
 urlpatterns = [
     path("me/", AdminMeView.as_view(), name="admin-me"),

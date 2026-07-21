@@ -28,6 +28,7 @@ ALL_CAPABILITIES = {
     "dashboard.view": "View the admin dashboard summary",
     "stats.recompute": "Manually trigger an impact-stats recompute",
     "partner_applications.review": "Review, approve, or reject partner/drop-off applications",
+    "leaderboard.manage": "Feature/unfeature a donor on the public leaderboard spotlight",
 }
 
 

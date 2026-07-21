@@ -42,6 +42,7 @@ below if you want to generate a typed client instead of reading this by hand.
   - [Admin: Ratings](#admin-ratings)
   - [Admin: Drop-off points](#admin-drop-off-points)
   - [Admin: Dashboard & stats](#admin-dashboard--stats)
+  - [Admin: Leaderboard](#admin-leaderboard)
   - [Admin: Partner applications](#admin-partner-applications)
 - [Enums reference](#enums-reference)
 - [Common patterns](#common-patterns)
@@ -819,6 +820,28 @@ donation to join the leaderboard" prompt instead of a number in that case).
 [`PATCH /admin/users/{id}/`](#patch-adminusersid-usersedit), gated by the existing `users.edit`
 capability — no separate leaderboard-specific admin capability exists for this.
 
+#### `GET /leaderboard/featured/` 🔓 (public)
+
+An editorial "Donor of the Month"-style spotlight — a human pick by staff, distinct from the
+algorithmic ranking above. Returns every **currently-active** entry (there can be more than one at
+once — e.g. nothing stops staff running two simultaneous spotlights).
+
+Response `200`:
+```json
+[
+  {
+    "id": 3,
+    "username": "donor_amara",
+    "avatar_url": "https://cdn.example/avatars/3.jpg",
+    "blurb": "Amara has donated over 50 books to local schools this year!",
+    "featured_from": "2026-07-01T00:00:00Z",
+    "featured_until": "2026-07-31T23:59:59Z"
+  }
+]
+```
+`featured_until: null` means indefinite — no end date set. Empty array `[]` if nobody is currently
+featured. Managed via the [Admin API](#admin-leaderboard) below.
+
 ---
 
 ### Impact stats
@@ -1244,6 +1267,51 @@ Response `200`: the new snapshot, same shape as [`GET /stats/impact/`](#impact-s
 
 ---
 
+### Admin: Leaderboard
+
+Manages the editorial spotlight — see [`GET /leaderboard/featured/`](#get-leaderboardfeatured--public)
+for the public-facing result.
+
+#### `GET /admin/leaderboard/featured/` 🔒`leaderboard.manage`
+
+[Paginated](#pagination). Lists **every** entry — past, currently-active, and scheduled for the
+future — not just active ones, since staff need visibility into upcoming/expired spotlights too.
+
+Response item shape:
+```json
+{
+  "id": 3, "user": 42, "username": "donor_amara", "blurb": "Amazing contributor!",
+  "featured_from": "2026-07-01T00:00:00Z", "featured_until": "2026-07-31T23:59:59Z",
+  "created_by": 7, "created_at": "2026-06-28T09:00:00Z"
+}
+```
+
+#### `POST /admin/leaderboard/featured/` 🔒`leaderboard.manage`
+
+Request:
+```json
+{
+  "user_id": 42,
+  "blurb": "Amara has donated over 50 books to local schools this year!",
+  "featured_from": "2026-07-01T00:00:00Z",
+  "featured_until": "2026-07-31T23:59:59Z"
+}
+```
+`user_id` required. `blurb` optional (defaults empty). `featured_from` optional (defaults to now).
+`featured_until` optional (`null`/omitted = indefinite, no end date).
+
+`400`/`code: "user_opted_out"` if the target user has `include_in_leaderboard: false` — someone
+who's opted out of the algorithmic leaderboard can't be editorially featured either; the opt-out
+covers public donor visibility generally, not just the ranked list specifically.
+
+Response `201`: the created entry.
+
+#### `DELETE /admin/leaderboard/featured/{id}/` 🔒`leaderboard.manage`
+
+Ends a spotlight early (or removes a mistaken entry entirely). `204 No Content`.
+
+---
+
 ### Admin: Partner applications
 
 #### `GET /admin/partner-applications/` 🔒`partner_applications.review`
@@ -1407,6 +1475,7 @@ available live via [`GET /admin/capabilities/`](#get-admincapabilities-rolesmana
 | `dashboard.view` | View the admin dashboard summary |
 | `stats.recompute` | Manually trigger an impact-stats recompute |
 | `partner_applications.review` | Review, approve, or reject partner/drop-off applications |
+| `leaderboard.manage` | Feature/unfeature a donor on the public leaderboard spotlight |
 
 ---
 

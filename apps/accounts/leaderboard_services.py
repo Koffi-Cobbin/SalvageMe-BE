@@ -8,7 +8,7 @@ small, isolated addition — nothing about the API shape needs to change.
 """
 from __future__ import annotations
 
-from django.db.models import Avg, Count, F
+from django.db.models import Avg, Count, F, Q
 from django.utils import timezone
 
 from common.hero_tiers import get_hero_tier
@@ -120,3 +120,66 @@ def get_my_leaderboard_rank(*, user, period: str = "all_time") -> dict:
         "average_rating": avg_ratings.get(user.id),
         "hero_tier": get_hero_tier(my_count),
     }
+
+
+def get_active_featured_donors(at=None):
+    """Currently-active FeaturedDonor entries, for the public spotlight endpoint."""
+    from django.utils import timezone
+
+    from .models import FeaturedDonor
+
+    at = at or timezone.now()
+    return (
+        FeaturedDonor.objects.filter(featured_from__lte=at)
+        .filter(Q(featured_until__isnull=True) | Q(featured_until__gte=at))
+        .select_related("user")
+    )
+
+
+def create_featured_donor(*, user, blurb: str, featured_from, featured_until, acting_user):
+    """
+    Admin-only (gated by leaderboard.manage at the view layer). Refuses to
+    feature someone who's opted out of the leaderboard entirely — the
+    whole point of that opt-out is "don't put me on public donor
+    displays," and a spotlight is exactly that, just editorial rather than
+    algorithmic. See docs/LEADERBOARD_PLAN.md "Privacy".
+    """
+    from rest_framework.exceptions import ValidationError
+
+    from .models import FeaturedDonor
+
+    if not user.include_in_leaderboard:
+        raise ValidationError(
+            {
+                "detail": "This user has opted out of the public leaderboard and cannot be featured.",
+                "code": "user_opted_out",
+            }
+        )
+
+    entry = FeaturedDonor.objects.create(
+        user=user,
+        blurb=blurb,
+        featured_from=featured_from,
+        featured_until=featured_until,
+        created_by=acting_user,
+    )
+
+    from apps.moderation.services import record_audit_log
+
+    record_audit_log(
+        actor=acting_user, action="donor_featured", target_type="user", target_id=user.id,
+        metadata={"featured_donor_id": entry.id, "featured_from": str(featured_from), "featured_until": str(featured_until)},
+    )
+    return entry
+
+
+def remove_featured_donor(*, entry, acting_user):
+    from apps.moderation.services import record_audit_log
+
+    entry_id, user_id = entry.id, entry.user_id
+    entry.delete()
+
+    record_audit_log(
+        actor=acting_user, action="donor_unfeatured", target_type="user", target_id=user_id,
+        metadata={"featured_donor_id": entry_id},
+    )

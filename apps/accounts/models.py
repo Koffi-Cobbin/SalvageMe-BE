@@ -123,3 +123,36 @@ class UserRating(TimestampedModel):
 
     def __str__(self):
         return f"{self.rated_by} -> {self.rated_user} ({self.score}) on exchange {self.exchange_id}"
+
+
+class FeaturedDonor(TimestampedModel):
+    """
+    Editorial "Donor of the Month"-style spotlight — a human pick,
+    distinct from the algorithmic ranking in leaderboard_services.py. See
+    docs/LEADERBOARD_PLAN.md "Admin tie-in: featuring/excluding".
+    """
+
+    user = models.ForeignKey(User, related_name="featured_donor_entries", on_delete=models.CASCADE)
+    blurb = models.TextField(blank=True)
+    featured_from = models.DateTimeField()
+    featured_until = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        User, null=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-featured_from"]
+        indexes = [models.Index(fields=["featured_from", "featured_until"])]
+
+    def __str__(self):
+        return f"Featured: {self.user.username} ({self.featured_from.date()})"
+
+    def is_active(self, at=None) -> bool:
+        from django.utils import timezone
+
+        at = at or timezone.now()
+        if at < self.featured_from:
+            return False
+        if self.featured_until is not None and at > self.featured_until:
+            return False
+        return True
