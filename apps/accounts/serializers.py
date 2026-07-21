@@ -36,6 +36,7 @@ class UserMeSerializer(serializers.ModelSerializer):
             "phone",
             "is_verified",
             "avatar_url",
+            "include_in_leaderboard",
             "latitude",
             "longitude",
             "date_joined",

@@ -11,6 +11,7 @@ urlpatterns = [
     path("admin/", include("apps.analytics.admin_urls")),
     path("admin/", include("apps.partners.admin_urls")),
     path("", include("apps.accounts.urls")),
+    path("", include("apps.accounts.leaderboard_urls")),
     path("", include("apps.listings.urls")),
     path("", include("apps.requests.urls")),
     path("", include("apps.exchanges.urls")),

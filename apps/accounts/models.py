@@ -53,6 +53,12 @@ class User(AbstractUser):
     phone = models.CharField(max_length=32, null=True, blank=True)
     location = gis_models.PointField(null=True, blank=True, geography=True, srid=4326)
     is_verified = models.BooleanField(default=False)
+    # Opt-out (default True — see docs/LEADERBOARD_PLAN.md "Privacy"). A
+    # user can toggle this themselves via PATCH /users/me/; staff can also
+    # set it on someone else's behalf via PATCH /admin/users/{id}/
+    # (gated by the existing users.edit capability — no new capability
+    # needed just to exclude someone from a public list).
+    include_in_leaderboard = models.BooleanField(default=True)
 
     # Null = no admin access at all. See docs/ADMIN_API_PLAN.md.
     admin_role = models.ForeignKey(

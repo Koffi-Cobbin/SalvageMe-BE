@@ -27,6 +27,7 @@ below if you want to generate a typed client instead of reading this by hand.
   - [Reports](#reports)
   - [Notifications](#notifications)
   - [Partner applications](#partner-applications)
+  - [Leaderboard](#leaderboard)
   - [Impact stats](#impact-stats)
   - [Health check](#health-check)
 - [Admin API](#admin-api)
@@ -262,6 +263,7 @@ Partial update. Any subset of these fields:
   "email": "newemail@example.com",
   "role": "both",
   "phone": "+44 7000 000000",
+  "include_in_leaderboard": true,
   "latitude": 51.5072,
   "longitude": -0.1276
 }
@@ -765,6 +767,60 @@ a rejected one doesn't block reapplying.
 
 ---
 
+### Leaderboard
+
+Public recognition for top donors, ranked by completed donations. Computed live on every request
+(not cached) — always reflects current data.
+
+#### `GET /leaderboard/` 🔓 (public)
+
+Query params: `?period=all_time` (default) or `?period=this_month`. `?limit=20` (default, capped
+at 100 — this is a "top N" endpoint, not a full paginated list).
+
+Response `200`:
+```json
+{
+  "period": "all_time",
+  "results": [
+    {
+      "rank": 1,
+      "username": "donor_amara",
+      "avatar_url": "https://cdn.example/avatars/3.jpg",
+      "completed_donation_count": 47,
+      "average_rating": 4.9,
+      "hero_tier": "Legend"
+    }
+  ]
+}
+```
+`average_rating` reflects ratings received **specifically as a donor** (not mixed with any ratings
+received as a recipient on other exchanges) — `null` if they haven't been rated yet.
+`hero_tier` — see [Hero tier](#hero-tier) — `null` if below the first threshold (shouldn't
+normally appear in a top-N list, but possible with a small `?limit=`). `400`/`code: "invalid_period"`
+for anything other than the two supported values. Never exposes phone/email/location — same
+`PublicUserSerializer`-style boundary as everywhere else in this API (see
+[Contact/location privacy](#contactlocation-privacy)) — just `username`/`avatar_url` plus derived
+counts.
+
+#### `GET /leaderboard/me/` 🔒
+
+Your own rank, even when you're outside the top N of `GET /leaderboard/`.
+
+Response `200`:
+```json
+{ "rank": 47, "username": "donor_felix", "completed_donation_count": 3, "average_rating": 5.0, "hero_tier": "Contributor" }
+```
+`rank: null` if you have zero completed donations yet (not "last place" — show a "make your first
+donation to join the leaderboard" prompt instead of a number in that case).
+
+**Opting out:** anyone can exclude themselves from the public leaderboard via
+`PATCH /users/me/` with `{"include_in_leaderboard": false}` (default `true` — see
+[`GET /users/me/`](#get-usersme)). Staff can also do this on someone else's behalf via
+[`PATCH /admin/users/{id}/`](#patch-adminusersid-usersedit), gated by the existing `users.edit`
+capability — no separate leaderboard-specific admin capability exists for this.
+
+---
+
 ### Impact stats
 
 Public, cached aggregate numbers — e.g. for a homepage "our impact so far" section.
@@ -918,7 +974,8 @@ Single user, same shape.
 
 #### `PATCH /admin/users/{id}/` 🔒`users.edit`
 
-Any subset of `role`, `phone`, `is_verified`. **Does not include `admin_role`** — that's
+Any subset of `role`, `phone`, `is_verified`, `include_in_leaderboard` (see
+[Leaderboard](#leaderboard)). **Does not include `admin_role`** — that's
 exclusively via `assign-role` below, gated by the separate `roles.manage` capability, so a role
 with `users.edit` but not `roles.manage` can't grant admin access through the back door via a
 generic field edit.
@@ -1309,6 +1366,18 @@ never by the person who filed the report.
 | `pending` | Submitted, awaiting email verification and/or review. |
 | `approved` | A role (and optionally a drop-off point) was granted. |
 | `rejected` | Not approved — the applicant's account is unaffected and they can reapply. |
+
+#### Hero tier
+
+Derived from [`GET /leaderboard/`](#leaderboard)'s `completed_donation_count` — not a stored
+field, computed at read time. `null` below the first threshold.
+
+| Tier | Minimum completed donations |
+|---|---|
+| `Contributor` | 1 |
+| `Hero` | 5 |
+| `Champion` | 15 |
+| `Legend` | 50 |
 
 #### Capabilities
 

@@ -56,7 +56,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "username", "email", "phone", "role", "is_verified", "is_active",
-            "admin_role", "date_joined",
+            "include_in_leaderboard", "admin_role", "date_joined",
         ]
         read_only_fields = ["id", "username", "date_joined"]
 
@@ -69,4 +69,4 @@ class AdminUserSerializer(serializers.ModelSerializer):
 class AdminUserEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["role", "phone", "is_verified"]
+        fields = ["role", "phone", "is_verified", "include_in_leaderboard"]
